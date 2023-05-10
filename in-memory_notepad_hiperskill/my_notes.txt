@@ -1,0 +1,7 @@
+1: make complexity of for cicles lower - for fix this problem we need to use varible that contain count of record
+a) case for list we know if cont of record is no and can write "Notepad is empty" without loop the whole list
+b) in case of create we know what index we need to use for create record and we know if notepad full with out loop the whole list
+2: add validation for size of note - if we use not int input we want to show "wrond value for capaciti of notepad please try again"
+3: make metods instead code in main body
+4: think about using structure and methods for this structure ?
+5: check other solutions and create list of upgrades that I want to use
