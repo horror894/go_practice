@@ -3,48 +3,58 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"math"
+	"math/rand"
 	"os"
 	"strings"
 	"unicode"
 )
 
+// create const for promt
+// make main more clear
+// create one function for encript/decript
+// create struct for secretes
+
 const alfabetString = "abcdefghijklmnopqrstuvwxyz"
 const willYouMerry = "Will you marry me?"
 
-func encodeMessage(offset int, inputString string) string {
+func encodeMessage(offset int, inputString string, alphabet string) string {
 	var encodedString string
 	var position int
+	size := len(alphabet)
+
 	for _, element := range inputString {
-		position = strings.Index(alfabetString, strings.ToLower(string(element)))
-		if position == -1 {
+		position = strings.Index(alphabet, strings.ToLower(string(element)))
+		if position == -1 { // if not exist in alphabet paste as is
 			encodedString += string(element)
 		} else {
+			newPosition := (position + offset) % size // calculate position
 			if unicode.IsUpper(element) {
-				newPosition := (position + offset) % len(alfabetString)
-				encodedString += strings.ToUpper(string(alfabetString[newPosition]))
+				encodedString += strings.ToUpper(string(alphabet[newPosition]))
 			} else {
-				newPosition := (position + offset) % len(alfabetString)
-				encodedString += string(alfabetString[newPosition])
+				encodedString += string(alphabet[newPosition])
 			}
 		}
 	}
 	return encodedString
 }
 
-func decodeMessage(offset int, inputString string) string {
+func decodeMessage(offset int, inputString string, alphabet string) string {
 	var decodedString string
 	var position int
+	size := len(alphabet)
+
 	for _, element := range inputString {
 		position = strings.Index(alfabetString, strings.ToLower(string(element)))
 		if position == -1 {
 			decodedString += string(element)
 		} else {
+			newPosition := (position - offset) % size
+			if newPosition < 0 {
+				newPosition += len(alfabetString)
+			}
 			if unicode.IsUpper(element) {
-				newPosition := int(math.Abs(float64((position - offset) % len(alfabetString))))
 				decodedString += strings.ToUpper(string(alfabetString[newPosition]))
 			} else {
-				newPosition := int(math.Abs(float64((position - offset) % len(alfabetString))))
 				decodedString += string(alfabetString[newPosition])
 			}
 		}
@@ -54,66 +64,53 @@ func decodeMessage(offset int, inputString string) string {
 
 // replace all calculation by modulus
 
-func main() {
-	// write your code here
-	var g, p int
+func receiveSharedNum() (g, p int) {
 	_, err := fmt.Scanf("g is %d and p is %d", &g, &p)
 	if err != nil {
 		fmt.Print("Cannot parse input")
 	}
-	// fmt.Printf("g=%d and p=%d\n", g, p)
 	fmt.Print("OK\n")
+	return g, p
+}
 
-	b := 7
-	var A, B, S int
-	A, B, S = 1, 1, 1
-
+func generatePublicKey(g, p, b int) int {
+	key := 1
 	for i := 0; i < b; i++ {
-		B = B * g % p
+		key = key * g % p
 	}
+	return key
+}
+
+func main() {
+	var g, p int       // large prime number
+	var b int          // my secret
+	A, B, S := 1, 1, 1 // Alice public key, Bob public key, Secret for encript
+
+	g, p = receiveSharedNum() // receive variable from stdin
+	b = rand.Intn(300)        // generate my secret
+
+	B = generatePublicKey(g, p, b) // generate my public key
 
 	fmt.Scanf("A is %d", &A)
 
-	for i := 0; i < b; i++ {
-		S = S * A % p
-	}
+	S = generatePublicKey(A, p, b)
 
 	fmt.Printf("B is %d\n", B)
-	// fmt.Printf("A is %d\n", A)
-	// fmt.Printf("S is %d\n", S)
 
-	// index := strings.Index(alfabetString, "e")
-
-	/*var inputForEncode string
-	fmt.Print("Please enter string for encode:")
-	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Scan()
-	inputForEncode = scanner.Text()*/
-
-	offset := S % len(alfabetString)
-
-	fmt.Println(encodeMessage(offset, willYouMerry))
+	fmt.Println(encodeMessage(S, willYouMerry, alfabetString))
 
 	scanner := bufio.NewScanner(os.Stdin)
 	scanner.Scan()
 	inputForDecode := scanner.Text()
 
-	fmt.Println(decodeMessage(offset, inputForDecode))
+	answer := decodeMessage(S, inputForDecode, alfabetString)
 
-	/*for _, element := range strings.ToLower(inputForEncode) {
-		position := strings.Index(alfabetString, string(element)) // if not exist we receive -1 paste as is
-		fmt.Printf("Original position: %d\n", position)
+	switch answer {
+	case "Yeah, okay!":
+		fmt.Println(encodeMessage(S, "Great!", alfabetString))
+	case "Let's be friends.":
+		fmt.Println(encodeMessage(S, "What a pity!", alfabetString))
+
 	}
-	*/
-	/* if (position + offset) > len(alfabetString) {
-
-	}
-	*/
-	// apply s to modulus 26
-	// for encode - take latter index apply offset
-	// for decode - take latter index apply offset
-
-	// position + offset > 25 / overload {absolute function(25 - (offset + position))}
-	// position + offset <= 25 / normal {position + offset}
 
 }
