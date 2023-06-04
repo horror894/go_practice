@@ -20,6 +20,13 @@ func regexpMatch(regexp, input string) bool {
 	if input == "" {
 		return false
 	}
+	if string(regexp[0]) == "\\" {
+		if regexp[1] == input[0] || string(regexp[1]) == "." {
+			return regexpMatch(regexp[2:], input[1:])
+		} else {
+			return false
+		}
+	}
 	if len(regexp) >= 2 {
 		if string(regexp[1]) == "?" {
 			if regexp[0] == input[0] || string(regexp[0]) == "." {
