@@ -184,3 +184,4 @@ func main() {
 
 // create separate object for next generation
 // take actual generation and do func find neibors for each cell, result add in new object
+// add coment check github actions trigger
