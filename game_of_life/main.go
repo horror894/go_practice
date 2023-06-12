@@ -12,9 +12,16 @@ I want to do the same, we initialize object giving it some params, after that ca
 in my case with matrix.
 Because we create struct not for external use, for use it with specific methods.
 
+
+Rewrite part with new generation
+To many "if", reduce count of if statement
+
+Add real time show in console
+
 */
 
 type univirceObject struct {
+	alive  int
 	size   int
 	seed   int
 	matrix [][]string
@@ -131,10 +138,12 @@ func (original *univirceObject) newGeneration() {
 		}
 	}
 
+	original.alive = 0
 	for i := range original.matrix {
 		for a := range original.matrix[i] {
 			if tempSlice[i][a] == "O" {
 				original.matrix[i][a] = "O"
+				original.alive++
 			} else {
 				original.matrix[i][a] = " "
 			}
@@ -143,9 +152,17 @@ func (original *univirceObject) newGeneration() {
 }
 
 func main() {
+
+	testMap := map[string][][]int {
+		"N":
+	}
+
+
+
 	var size, seed, generationCount int
+	generationCount = 1
 	for tryCount := 10; tryCount > 0; tryCount-- {
-		if n, err := fmt.Scanf("%d %d %d", &size, &seed, &generationCount); n < 3 {
+		if n, err := fmt.Scanf("%d", &size); n < 1 {
 			fmt.Printf("Wrong input %s\n", err)
 			if tryCount > 1 {
 				continue
@@ -159,29 +176,39 @@ func main() {
 	myUniverce := univirceObject{}
 	myUniverce.newMatrix(size, seed)
 
-	for generationCount >= 1 {
+	for generationCount <= 10 {
 		myUniverce.newGeneration()
-		generationCount--
-	}
-
-	for i := range myUniverce.matrix {
-		for _, element := range myUniverce.matrix[i] {
-			fmt.Print(element)
+		fmt.Printf("Generation #%d\n", generationCount)
+		fmt.Printf("Alive: %d\n", myUniverce.alive)
+		for i := range myUniverce.matrix {
+			for _, element := range myUniverce.matrix[i] {
+				fmt.Print(element)
+			}
+			fmt.Print("\n")
 		}
-		fmt.Print("\n")
+		generationCount++
 	}
 
 }
 
-// actual position [i][j]
-// we try to find neighbors:
-// 1: i, j+1, j-1
-// 2: i+1, j, j+1, j-1
-// 3: i-1, j, j+1, j-1
-//
-// if j-1 < 0;    j-1 % size + size
-// if j+1 > size; j+1 % size
+/* I like this example !!!
+// DO NOT delete or modify the contents of the main() function!
+func main() {
+	date1, date2, date3 := readDate(), readDate(), readDate()
 
-// create separate object for next generation
-// take actual generation and do func find neibors for each cell, result add in new object
-// add coment check github actions trigger
+	// The first travel — checks conditions for the latest date:
+	checkFirstTravel(date1, date2, date3)
+
+	// The second travel — checks conditions for the earliest date:
+	checkSecondTravel(date1, date2, date3)
+
+	// The third travel — checks conditions for the middle date:
+	checkThirdTravel(date1, date2, date3)
+}
+
+// DO NOT modify the readDate function!
+func readDate() time.Time {
+	var year, month, day int
+	fmt.Scan(&year, &month, &day)
+	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
+*/
