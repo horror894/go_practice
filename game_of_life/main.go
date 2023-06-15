@@ -6,38 +6,43 @@ import (
 	"os"
 )
 
-/* finaly I want to chage logic of work
+/*
+finaly I want to chage logic of work
 it's the same as I saw in  bufio.NewScanner().
-I want to do the same, we initialize object giving it some params, after that call method and recive return
+I want to do the same, we initialize object giving it some params, after that call method and receive return
 in my case with matrix.
 Because we create struct not for external use, for use it with specific methods.
 
-
-Rewrite part with new generation
-To many "if", reduce count of if statement
-
 Add real time show in console
+
 
 */
 
-type univirceObject struct {
+type universeObject struct {
 	alive  int
 	size   int
 	seed   int
+	status bool
 	matrix [][]string
 }
 
-func (s *univirceObject) newMatrix(size int, seed int) {
-	s.matrix = make([][]string, size)
+func newUniverse(size int) *universeObject {
+	return &universeObject{
+		size: size,
+	}
+}
+
+func (s *universeObject) newMatrix() {
+
+	s.status = true
+	// matrix initialization
+	s.matrix = make([][]string, s.size)
 	for i := range s.matrix {
-		s.matrix[i] = make([]string, size)
+		s.matrix[i] = make([]string, s.size)
 	}
 
-	s.size = size
-	s.seed = seed
-
-	rand.Seed(int64(seed))
-
+	rand.Seed(14)
+	// fill matrix randomly
 	for i := range s.matrix {
 		for a := range s.matrix[i] {
 			randomNumber := rand.Intn(2)
@@ -49,11 +54,17 @@ func (s *univirceObject) newMatrix(size int, seed int) {
 
 		}
 	}
-
 }
 
-func (original *univirceObject) newGeneration() {
+func (original *universeObject) newGeneration() {
 
+	if original.status == false {
+		panic("Generations call for empty universe")
+	}
+
+	aliveCount := 0
+
+	// create temporary slice for intermediate calculations
 	tempSlice := make([][]string, original.size)
 	for i := range tempSlice {
 		tempSlice[i] = make([]string, original.size)
@@ -61,108 +72,53 @@ func (original *univirceObject) newGeneration() {
 
 	for i := range original.matrix {
 		for a := range original.matrix[i] {
-			// find naibors
-			// fist step set coordinats for all neighbors
-			// i - SN, a - EW;
-			var iN, iS, aE, aW int // coordinats of neighbors
-			// find N
-			if i-1 < 0 {
-				iN = (i-1)%original.size + original.size
+			countOfNeigbours := original.countNeigboursForPossition(a, i)
+			if shouldLive(original.matrix[i][a], countOfNeigbours) {
+				tempSlice[i][a] = "O"
+				aliveCount++
 			} else {
-				iN = i - 1
+				tempSlice[i][a] = " "
 			}
-			// find S
-			if i+1 >= original.size {
-				iS = (i + 1) % original.size
-			} else {
-				iS = i + 1
-			} // find E
-			if a-1 < 0 {
-				aE = (a-1)%original.size + original.size
-			} else {
-				aE = a - 1
-			}
-			// find W
-			if a+1 >= original.size {
-				aW = (a + 1) % original.size
-			} else {
-				aW = a + 1
-			}
-			// check neigbours
-			countOfNeighbors := 0
-			if original.matrix[iN][a] == "O" {
-				countOfNeighbors++
-			}
-			if original.matrix[iS][a] == "O" {
-				countOfNeighbors++
-			}
-			if original.matrix[i][aE] == "O" {
-				countOfNeighbors++
-			}
-			if original.matrix[i][aW] == "O" {
-				countOfNeighbors++
-			}
-			if original.matrix[iN][aE] == "O" {
-				countOfNeighbors++
-			}
-			if original.matrix[iN][aW] == "O" {
-				countOfNeighbors++
-			}
-			if original.matrix[iS][aE] == "O" {
-				countOfNeighbors++
-			}
-			if original.matrix[iS][aW] == "O" {
-				countOfNeighbors++
-			}
-
-			// fmt.Printf("for element %d and %d, Neibors: coordinats:%d %d %d %d\n", i, a, iN, iS, aE, aW)
-
-			// make disigion
-			if original.matrix[i][a] == "O" {
-				if countOfNeighbors < 2 || countOfNeighbors > 3 {
-					tempSlice[i][a] = " "
-				} else {
-					tempSlice[i][a] = "O"
-				}
-
-			} else {
-				if countOfNeighbors == 3 {
-					tempSlice[i][a] = "O"
-				} else {
-					tempSlice[i][a] = " "
-				}
-			}
-
-			// above line
 
 		}
 	}
-
-	original.alive = 0
-	for i := range original.matrix {
-		for a := range original.matrix[i] {
-			if tempSlice[i][a] == "O" {
-				original.matrix[i][a] = "O"
-				original.alive++
-			} else {
-				original.matrix[i][a] = " "
-			}
-		}
-	}
+	original.alive = aliveCount
+	original.matrix = tempSlice
 }
 
-func main() {
+func (original *universeObject) countNeigboursForPossition(a, i int) int {
+	neighboursPaterns := [][]int{{-1, -1}, {-1, 0}, {-1, 1}, {0, -1}, {0, 1}, {1, -1}, {1, 0}, {1, 1}}
+	neighCount := 0
 
-	testMap := map[string][][]int {
-		"N":
+	// check neighbours
+	for _, dir := range neighboursPaterns {
+		y := (dir[0] + i + original.size) % original.size
+		x := (dir[1] + a + original.size) % original.size
+		if original.matrix[y][x] == "O" {
+			neighCount++
+		}
 	}
+	return neighCount
+}
 
+func shouldLive(currentState string, neighbours int) bool {
+	if currentState == "O" {
+		if neighbours < 2 || neighbours > 3 {
+			return false
+		}
+		return true
+	} else if currentState == " " {
+		if neighbours == 3 {
+			return true
+		}
+		return false
+	}
+	return false
+}
 
-
-	var size, seed, generationCount int
-	generationCount = 1
+func scanUserInput(input *int) *int {
 	for tryCount := 10; tryCount > 0; tryCount-- {
-		if n, err := fmt.Scanf("%d", &size); n < 1 {
+		if n, err := fmt.Scanf("%d", input); n < 1 {
 			fmt.Printf("Wrong input %s\n", err)
 			if tryCount > 1 {
 				continue
@@ -172,12 +128,19 @@ func main() {
 		}
 		break
 	}
+	return input
+}
 
-	myUniverce := univirceObject{}
-	myUniverce.newMatrix(size, seed)
+func main() {
+	var size int
+	generationCount := 0
+	// input read
+	scanUserInput(&size)
+
+	myUniverce := newUniverse(size)
+	myUniverce.newMatrix()
 
 	for generationCount <= 10 {
-		myUniverce.newGeneration()
 		fmt.Printf("Generation #%d\n", generationCount)
 		fmt.Printf("Alive: %d\n", myUniverce.alive)
 		for i := range myUniverce.matrix {
@@ -186,29 +149,8 @@ func main() {
 			}
 			fmt.Print("\n")
 		}
+		myUniverce.newGeneration()
 		generationCount++
 	}
 
 }
-
-/* I like this example !!!
-// DO NOT delete or modify the contents of the main() function!
-func main() {
-	date1, date2, date3 := readDate(), readDate(), readDate()
-
-	// The first travel — checks conditions for the latest date:
-	checkFirstTravel(date1, date2, date3)
-
-	// The second travel — checks conditions for the earliest date:
-	checkSecondTravel(date1, date2, date3)
-
-	// The third travel — checks conditions for the middle date:
-	checkThirdTravel(date1, date2, date3)
-}
-
-// DO NOT modify the readDate function!
-func readDate() time.Time {
-	var year, month, day int
-	fmt.Scan(&year, &month, &day)
-	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
-*/
