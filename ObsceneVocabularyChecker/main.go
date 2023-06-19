@@ -8,12 +8,41 @@ import (
 	"strings"
 )
 
+func reciveTabooWords(file *os.File) []string {
+	var tabooSlice []string
+	fileScanner := bufio.NewScanner(file)
+	for fileScanner.Scan() {
+		tabooSlice = append(tabooSlice, fileScanner.Text())
+	}
+	return tabooSlice
+}
+
+func checkUserInput(word string, tabooWords *[]string) string {
+	var outPutWord string
+	var isItbadWord bool
+	for _, element := range *tabooWords {
+		if strings.EqualFold(word, element) {
+			isItbadWord = true
+			break
+		}
+	}
+	if isItbadWord {
+		for range word {
+			outPutWord += "*"
+		}
+	} else {
+		outPutWord = word
+	}
+
+	return outPutWord
+}
+
 func main() {
 	var userInput string
-	var wordForOutput string
-	var tabooWords []string
-	var matchStatus bool
-	fmt.Scan(&userInput)
+	// user provide file name
+	if _, err := fmt.Scan(&userInput); err != nil {
+		log.Fatal(err)
+	}
 
 	file, err := os.Open(userInput)
 	if err != nil {
@@ -21,35 +50,22 @@ func main() {
 	}
 	defer file.Close()
 
-	fileScaner := bufio.NewScanner(file)
-	for fileScaner.Scan() {
-		tabooWords = append(tabooWords, fileScaner.Text())
+	tabooWords := reciveTabooWords(file)
+	// user provide string for analize
+	if _, err := fmt.Scan(&userInput); err != nil {
+		log.Fatal(err)
 	}
 
 	for {
-		wordForOutput = ""
-		matchStatus = false
 		fmt.Scan(&userInput)
 		if userInput == "exit" {
 			fmt.Println("Bye!")
 			os.Exit(0)
 		}
 
-		for _, element := range tabooWords {
-			if strings.ToLower(element) == strings.ToLower(userInput) {
-				for range userInput {
-					wordForOutput += "*"
-				}
-				matchStatus = true
-				break
-			}
-		}
+		checkWord := checkUserInput(userInput, &tabooWords)
 
-		if matchStatus {
-			fmt.Println(wordForOutput)
-		} else {
-			fmt.Println(userInput)
-		}
+		fmt.Println(checkWord)
 
 	}
 }
