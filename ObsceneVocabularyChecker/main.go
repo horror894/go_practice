@@ -17,7 +17,7 @@ func reciveTabooWords(file *os.File) []string {
 	return tabooSlice
 }
 
-func checkUserInput(word string, tabooWords *[]string) string {
+func checkWord(word string, tabooWords *[]string) string {
 	var outPutWord string
 	var isItbadWord bool
 	for _, element := range *tabooWords {
@@ -39,6 +39,7 @@ func checkUserInput(word string, tabooWords *[]string) string {
 
 func main() {
 	var userInput string
+	var userInputSlice []string
 	// user provide file name
 	if _, err := fmt.Scan(&userInput); err != nil {
 		log.Fatal(err)
@@ -52,20 +53,27 @@ func main() {
 
 	tabooWords := reciveTabooWords(file)
 	// user provide string for analize
-	if _, err := fmt.Scan(&userInput); err != nil {
-		log.Fatal(err)
-	}
 
 	for {
-		fmt.Scan(&userInput)
-		if userInput == "exit" {
+
+		userInputScanner := bufio.NewScanner(os.Stdin)
+		//userInputScanner.Split(bufio.ScanWords)
+		userInputScanner.Scan()
+		myInput := userInputScanner.Text()
+
+		if strings.HasPrefix(myInput, "exit") {
 			fmt.Println("Bye!")
-			os.Exit(0)
 		}
 
-		checkWord := checkUserInput(userInput, &tabooWords)
+		userInputSlice = strings.Split(myInput, "\n")
 
-		fmt.Println(checkWord)
+		var finalString string
+		for _, element := range userInputSlice {
+			checkedWord := checkWord(element, &tabooWords)
+			finalString += checkedWord
+		}
+
+		fmt.Println(finalString)
 
 	}
 }
