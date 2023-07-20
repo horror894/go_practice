@@ -15,17 +15,210 @@ import (
 	"strings"
 )
 
-type sizeMap map[int][]string
-type hashMap map[int]map[string][]string
+const errorDirectoryNotSpecified = "directory is not specified"
+const errorToManyTry = "too many try"
+const errorWrongOptionForSort = "wrong option for sort, only 1 or 2"
 
-func twoTypeSliceSort(sliceForSort []int, sortType bool) {
-	sort.SliceStable(sliceForSort, func(l, j int) bool {
-		if sortType {
-			return sliceForSort[l] > sliceForSort[j]
-		} else {
-			return sliceForSort[l] < sliceForSort[j]
+const errorWrongOption = "\nWrong option"
+const fileFormatPrompt = "Enter file format:\n"
+const sortOptionPrompt = "\nSize sorting options:\n" +
+	"1. Descending\n" +
+	"2. Ascending\n" +
+	"\n" +
+	"Enter a sorting option:\n"
+const checkDuplicatesPrompt = "\nCheck for duplicates?\n"
+const deleteFilesPrompt = "\nDelete files?\n"
+const numbersForDeletingPrompt = "\nEnter file numbers to delete:\n"
+
+type PathStorage struct {
+	rootPath      string
+	extFilter     string
+	sortedKeys    []int
+	pathMap       map[int]map[string][]string
+	numberedPaths []string
+	error         error
+}
+
+func NewStorage(rootPath string, ExtFilter string) *PathStorage {
+	return &PathStorage{
+		rootPath:  rootPath,
+		extFilter: ExtFilter,
+	}
+}
+
+func (f *PathStorage) Error() error {
+	return f.error
+}
+
+func (f *PathStorage) loadStorage() {
+	f.pathMap = make(map[int]map[string][]string)
+
+	err := filepath.Walk(f.rootPath, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			log.Fatal(err)
 		}
+		if !info.IsDir() {
+			if filepath.Ext(path) == "."+f.extFilter || f.extFilter == "" {
+				sizeKey := int(info.Size())
+				hashKey, err2 := getHashStringForFile(path)
+				if err2 != nil {
+					log.Fatal(err2)
+				}
+				if _, ok := f.pathMap[sizeKey]; !ok {
+					f.pathMap[sizeKey] = make(map[string][]string)
+				}
+				f.pathMap[sizeKey][hashKey] = append(f.pathMap[sizeKey][hashKey], path)
+			}
+		}
+		return nil
 	})
+	if err != nil {
+		f.error = err
+	}
+
+	var keyList []int
+	for k := range f.pathMap {
+		keyList = append(keyList, k)
+	}
+	f.sortedKeys = keyList
+}
+
+func (f *PathStorage) printStorageContent(withHash bool) {
+	lineNumber := 1
+	var pathSlice []string
+
+	for _, key := range f.sortedKeys {
+		hashMap, _ := f.pathMap[key]
+
+		if !withHash {
+			fmt.Printf("%d bytes\n", key)
+			for _, paths := range hashMap {
+				for _, path := range paths {
+					fmt.Println(path)
+				}
+			}
+			fmt.Println()
+		} else {
+			duplicateExist := false
+			for _, path := range hashMap {
+				if len(path) > 1 {
+					duplicateExist = true
+					break
+				}
+			}
+			if duplicateExist {
+				fmt.Printf("%d bytes\n", key)
+				for hash, paths := range hashMap {
+					if len(paths) > 1 {
+						fmt.Printf("Hash: %v\n", hash)
+						for _, path := range paths {
+							fmt.Printf("%d. %v\n", lineNumber, path)
+							pathSlice = append(pathSlice, path)
+							lineNumber++
+						}
+					}
+				}
+			}
+		}
+	}
+	f.numberedPaths = pathSlice
+}
+
+func (f *PathStorage) sortContent(sortType string) {
+	if sortType == "1" || sortType == "2" {
+		sort.Slice(f.sortedKeys, func(l, j int) bool {
+			switch sortType {
+			case "1":
+				return f.sortedKeys[l] > f.sortedKeys[j]
+			case "2":
+				return f.sortedKeys[l] < f.sortedKeys[j]
+			default:
+				return true
+			}
+		})
+	} else {
+		f.error = errors.New(errorWrongOptionForSort)
+	}
+}
+
+func (f *PathStorage) deleteFiles(listDeletingNumbers []string) (bool, int64, error) {
+	var freedUpSpace int64
+	borderNum := len(f.numberedPaths)
+	for _, number := range listDeletingNumbers {
+		num, err := strconv.Atoi(number)
+		if err != nil {
+			return false, 0, err
+		}
+		if num > borderNum || num < 0 {
+			return false, 0, errors.New("wrong format")
+		}
+	}
+	for _, number := range listDeletingNumbers {
+		num, err := strconv.Atoi(number)
+		num--
+		path := f.numberedPaths[num]
+		fileInfo, err := os.Stat(path)
+		if err != nil {
+			log.Fatal(err)
+		}
+		freedUpSpace += fileInfo.Size()
+		err = os.Remove(path)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+	return true, freedUpSpace, nil
+}
+
+func receiveArguments() (string, error) {
+	if len(os.Args) < 2 {
+		return "", errors.New(errorDirectoryNotSpecified)
+	}
+	return os.Args[1], nil
+}
+
+func userInputReceiver(prompt string, possibleOptions []string) (string, error) {
+	scanner := bufio.NewScanner(os.Stdin)
+
+	for i := 0; i < 10; i++ {
+		if _, err := fmt.Print(prompt); err != nil {
+			return "", err
+		}
+
+		scanner.Scan()
+		if err := scanner.Err(); err != nil {
+			return "", err
+		}
+
+		userInput := scanner.Text()
+		if err := scanner.Err(); err != nil {
+			return "", err
+		}
+
+		for _, option := range possibleOptions {
+			if option == userInput {
+				return userInput, nil
+			}
+			if option == "any" {
+				return userInput, nil
+			}
+		}
+		fmt.Println(errorWrongOption)
+	}
+
+	return "", errors.New(errorToManyTry)
+}
+
+func getUniversalOptions() []string {
+	return []string{"any"}
+}
+
+func getSortingOptions() []string {
+	return []string{"1", "2"}
+}
+
+func getYesNoOptions() []string {
+	return []string{"yes", "no"}
 }
 
 func getHashStringForFile(path string) (string, error) {
@@ -33,7 +226,11 @@ func getHashStringForFile(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Fatal(err)
+		}
+	}()
 
 	md5Hash := md5.New()
 	if _, err := io.Copy(md5Hash, file); err != nil {
@@ -43,234 +240,77 @@ func getHashStringForFile(path string) (string, error) {
 	return fmt.Sprintf("%x", md5Hash.Sum(nil)), nil
 }
 
-func receiveFormatFromUser() string {
-	var inputFileFormant string
-	fmt.Println("Enter file format:")
-	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Scan()
-	inputFileFormant = scanner.Text()
-
-	return "." + inputFileFormant
-}
-
-func receiveMapOfFiles(myPath string, filterFileFormat string) (map[int][]string, error) {
-	myMap := make(map[int][]string)
-	err := filepath.Walk(myPath, func(path string, info fs.FileInfo, err error) error {
-		if err != nil {
-			log.Fatal(err)
-		}
-		if !info.IsDir() {
-			if filepath.Ext(path) == filterFileFormat || filterFileFormat == "." {
-				key := int(info.Size())
-				myMap[key] = append(myMap[key], path)
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return myMap, err
-}
-
-func receiveSortTypeFromUser() bool {
-	var sortType string
-	fmt.Print("\nSize sorting options:\n" +
-		"1. Descending\n" +
-		"2. Ascending\n" +
-		"\n" +
-		"Enter a sorting option:\n")
-	myScanner := bufio.NewScanner(os.Stdin)
-	myScanner.Scan()
-	sortType = myScanner.Text()
-	switch sortType {
-	case "1":
-		return true
-	case "2":
-		return false
-	default:
-		fmt.Println("Wrong option")
-		return receiveSortTypeFromUser()
-		// May be it's not good use recursion when it's not need. Replace it by loop.
-	}
-}
-
-func printMap(myMap map[int][]string, sortedKeys []int) {
-	for _, value := range sortedKeys {
-		fmt.Printf("%d bytes\n", value)
-		for _, val := range myMap[value] {
-			fmt.Println(val)
-		}
-	}
-}
-
-func checkDuplicates(myMap map[int][]string) map[int]map[string][]string {
-	tempHashDict := make(map[int]map[string][]string)
-	for value, _ := range myMap {
-		for _, val := range myMap[value] {
-			stringHash, err := getHashStringForFile(val)
-			if err != nil {
-				fmt.Print(err)
-			}
-			if _, ok := tempHashDict[value]; !ok {
-				tempHashDict[value] = make(map[string][]string)
-			}
-			tempHashDict[value][stringHash] = append(tempHashDict[value][stringHash], val)
-		}
-	}
-	return tempHashDict
-}
-
-func printNewMap(sizeMap map[int]map[string][]string, sortedKeys []int) []string {
-	lineNumber := 1
-	var pathSlice []string
-
-	for _, key := range sortedKeys {
-		hashMap, _ := sizeMap[key]
-		duplicateExist := false
-		for _, path := range hashMap {
-			if len(path) > 1 {
-				duplicateExist = true
-				break
-			}
-		}
-		if duplicateExist {
-			fmt.Printf("%d bytes\n", key)
-			for hash, paths := range hashMap {
-				if len(paths) > 1 {
-					fmt.Printf("Hash: %v\n", hash)
-					for _, path := range paths {
-						fmt.Printf("%d. %v\n", lineNumber, path)
-						pathSlice = append(pathSlice, path)
-						lineNumber++
-					}
-				}
-			}
-		}
-	}
-	return pathSlice
-}
-
-func askUserAboutDeleting() bool {
-	var userInput string
-	fmt.Println("Delete files?")
-	fmt.Scan(&userInput)
-
-	switch userInput {
-	case "yes":
-		return true
-	case "no":
-		return false
-	default:
-		fmt.Println("Wrong option")
-	}
-	return false
-}
-
-func askWhatFilesWeWillDelete() []string {
-	fmt.Println("Enter file numbers to delete:")
-	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Scan()
-	userInput := scanner.Text()
-
-	numbersfordeleting := strings.Split(userInput, " ")
-
-	return numbersfordeleting
-}
-
-func checkNumbersExists(listOfNumbers []string, pathForDelete []string) (bool, error) {
-	borderNum := len(pathForDelete)
-	for _, number := range listOfNumbers {
-		num, err := strconv.Atoi(number)
-		if err != nil {
-			return false, err
-		}
-		if num > borderNum || num < 0 {
-			return false, errors.New("wrong format")
-		}
-	}
-	return true, nil
-}
-
-func deleteFiles(listOfNumbers []string, pathForDelete []string) (bool, int64) {
-	var freedUpSpace int64
-	for _, number := range listOfNumbers {
-		num, err := strconv.Atoi(number)
-		num--
-		path := pathForDelete[num]
-		fileInfo, err := os.Stat(path)
-		if err != nil {
-			log.Fatal(err)
-		}
-		freedUpSpace += fileInfo.Size()
-		error := os.Remove(path)
-		if error != nil {
-			log.Fatal(error)
-		}
-	}
-	return true, freedUpSpace
-}
-
 func main() {
 
-	if len(os.Args) < 2 {
-		fmt.Print("Directory is not specified")
-	} else {
-		inputFileFormant := receiveFormatFromUser()
+	rootPath, err := receiveArguments()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+		//log.Fatal(err)
+	}
 
-		// Scan directory and save path for filtered files to map
-		myMap, err := receiveMapOfFiles(os.Args[1], inputFileFormant)
+	formatFiler, err := userInputReceiver(fileFormatPrompt, getUniversalOptions())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	sortingOption, err := userInputReceiver(sortOptionPrompt, getSortingOptions())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	storage := NewStorage(rootPath, formatFiler)
+
+	storage.loadStorage()
+	if err := storage.Error(); err != nil {
+		log.Fatal(err)
+	}
+
+	storage.sortContent(sortingOption)
+	if err := storage.Error(); err != nil {
+		log.Fatal(err)
+	}
+
+	storage.printStorageContent(false)
+
+	duplicatesOption, err := userInputReceiver(checkDuplicatesPrompt, getYesNoOptions())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	switch duplicatesOption {
+	case "yes":
+		storage.printStorageContent(true)
+	case "no":
+		os.Exit(0)
+	}
+
+	deleteOption, err := userInputReceiver(deleteFilesPrompt, getYesNoOptions())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	switch deleteOption {
+	case "yes":
+		deleteNumbers, err := userInputReceiver(numbersForDeletingPrompt, getUniversalOptions())
 		if err != nil {
 			log.Fatal(err)
 		}
-		// Ask user about sort type
-		sortType := receiveSortTypeFromUser()
-		// I think it's not cool take string and convert it to bool, it will be not obvious in the future
-		var keyList []int
-		for k := range myMap {
-			keyList = append(keyList, k)
+		deleteNumbersSlice := strings.Split(deleteNumbers, " ")
+
+		status, freedSpace, err := storage.deleteFiles(deleteNumbersSlice)
+		if err != nil {
+			log.Fatal(err)
 		}
-		// Sort slice in a two-way
-		twoTypeSliceSort(keyList, sortType)
-		// print map in sorted order
-		printMap(myMap, keyList)
-
-	myLoop2:
-		for {
-			fmt.Print("\nCheck for duplicates?\n")
-			var ifWeCheckDuplicates string
-			myScanner := bufio.NewScanner(os.Stdin)
-			myScanner.Scan()
-			ifWeCheckDuplicates = myScanner.Text()
-			switch ifWeCheckDuplicates {
-			case "yes":
-				newMap := checkDuplicates(myMap)
-				pathsForDelete := printNewMap(newMap, keyList)
-				userChoice := askUserAboutDeleting()
-
-				if userChoice {
-					numbersForDeleting := askWhatFilesWeWillDelete()
-					status, _ := checkNumbersExists(numbersForDeleting, pathsForDelete)
-					if status {
-						stat, size := deleteFiles(numbersForDeleting, pathsForDelete)
-						if stat {
-							fmt.Printf("Total freed up space: %d bytes", size)
-						}
-					}
-					fmt.Println("Wrong format")
-				}
-
-				break myLoop2
-			case "no":
-				break myLoop2
-			default:
-				fmt.Println("Wrong option")
-			}
+		if status {
+			fmt.Printf("Total freed up space: %d bytes", freedSpace)
 		}
+	case "no":
 
 	}
 }
 
+// If duplicated not exist - print prompt and exit
 // https://hyperskill.org/learn/step/18567
 // https://gosamples.dev/read-user-input/
 // read about input - I suppose that use wrong func for user input of user numbers
@@ -278,7 +318,7 @@ func main() {
 // convert strings to numners
 // check that numbers exist in slice
 // n-1 use as index for deleting
-// take path receice size add in variable and than delete file
+// take path receice size add in variable and then delete file
 // create slice when print
 // return this slice
 // read input
